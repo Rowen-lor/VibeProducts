@@ -1,0 +1,34 @@
+# 将某个文件夹里所有文件的文件名归纳到一个Excel表格里面
+import os
+import pandas as pd
+
+def collect_filenames_to_excel(directory):
+    try:
+        # 检查路径是否存在
+        if not os.path.exists(directory):
+            print(f"路径 '{directory}' 不存在，请重新输入！")
+            return
+        
+        # 遍历目录，获取所有文件名
+        filenames = []
+        for root, _, files in os.walk(directory):
+            for file in files:
+                filenames.append(file)
+        
+        # 检查是否有文件
+        if not filenames:
+            print("目录中没有找到任何文件！")
+            return
+        
+        # 将文件名保存到 Excel
+        df = pd.DataFrame(filenames, columns=["文件名"])
+        output_path = os.path.join(directory, "filename.xlsx")
+        df.to_excel(output_path, index=False, engine='openpyxl')
+        print(f"文件名已成功保存到 {output_path}")
+    
+    except Exception as e:
+        print(f"发生错误：{e}")
+
+if __name__ == "__main__":
+    directory = input("请输入要扫描的目录路径：").strip()
+    collect_filenames_to_excel(directory)
