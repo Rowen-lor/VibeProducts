@@ -1,0 +1,96 @@
+import re
+import openpyxl
+
+# 用户输入文件路径
+file_path = input("请输入Excel文件的路径（例如 'All_Chinese.xlsx'）：").strip()
+
+# 加载工作簿
+workbook = openpyxl.load_workbook(file_path)  # 使用用户输入的路径加载文件
+
+# 定义要忽略的标记的正则表达式，包括 <color=任意值> 和 <size=任意值>
+ignore_patterns = r'(\{param[1-5]\}|<color=[^>]*>|<\/color>|<size=[^>]*>|<\/size>|%s|ss_id_\d+|\\n)'
+
+# 定义语言列的映射
+language_mapping = {
+    '中文': 0,
+    '英文': 1,
+    '繁体': 2,
+    '日文': 3,
+    '韩文': 4,
+    '俄文': 5,
+    '葡文': 6,
+    '德文': 7,
+    '西文': 8,
+    '法文': 9
+}
+
+# 用户输入要检测的语言列
+while True:
+    language_column = input("请输入要检测的语言列（例如 '中文'、'英文'、'繁体' 等）：").strip()
+    if language_column in language_mapping:
+        break
+    else:
+        print("输入的语言列无效，请重新输入。")
+
+# 用户输入表的类型
+while True:
+    table_type = input("请输入表的类型（'新表' 或 '旧表'）：").strip().lower()
+    if table_type in ['新表', '旧表']:
+        break
+    else:
+        print("输入的表类型无效，请重新输入。")
+
+# 根据表的类型选择工作表
+if table_type == '新表':
+    sheet = workbook["new_translate"]
+    start_column = 7  # G列
+else:  # 旧表
+    sheet = workbook["all_translated"]
+    start_column = 3  # C列
+
+# 获取对应的列索引
+column_index = language_mapping[language_column]
+
+# 计算实际列字母
+column_letter = chr(start_column + column_index + 63)  # 计算ASCII码
+
+# 检查指定列内容，移除忽略标记后再清理换行符等特殊字符
+matched_rows = []
+for row in range(3, sheet.max_row + 1):  # 从第3行开始读取
+    cell_value = sheet[f"{column_letter}{row}"].value
+    if cell_value:
+        # 原始内容检查
+        if language_column == '英文':
+            if re.search(r'[一-龟]', cell_value):  # 检查原始内容是否包含中文
+                cleaned_text = re.sub(ignore_patterns, '', cell_value).strip()
+                if re.search(r'[一-龟]', cleaned_text):  # 清理后是否仍有中文
+                    matched_rows.append((row, cell_value, cleaned_text))
+        elif language_column == '繁体':
+            if re.search(r'[A-Za-z]', cell_value):  # 检查原始内容是否包含英文
+                cleaned_text = re.sub(ignore_patterns, '', cell_value).strip()
+                if re.search(r'[A-Za-z]', cleaned_text):  # 清理后是否仍有英文
+                    matched_rows.append((row, cell_value, cleaned_text))
+        elif language_column in ['日文', '韩文']:
+            if re.search(r'[一-龟]', cell_value):  # 检查原始内容是否包含英文
+                cleaned_text = re.sub(ignore_patterns, '', cell_value).strip()
+                if re.search(r'[一-龟]', cleaned_text):  # 清理后是否仍有英文
+                    matched_rows.append((row, cell_value, cleaned_text))
+
+# # 输出结果
+# if matched_rows:
+#     print(f"以下行包含问题内容（忽略指定标记并移除换行符等特殊字符后）：")
+#     for row, original_text, cleaned_text in matched_rows:
+#         print(f"{column_letter}{row}: 原始内容='{original_text}'，\n 清理后='{cleaned_text}'\n")
+# else:
+#     print(f"{column_letter}列中未找到包含问题内容（忽略指定标记并移除换行符等特殊字符后）。")
+
+# 输出结果
+separator = "-" * 80  # 定义分隔符
+if matched_rows:
+    print(f"以下行包含问题内容（忽略指定标记并移除换行符等特殊字符后）：")
+    for row, original_text, cleaned_text in matched_rows:
+        print(f"{column_letter}{row}: '{original_text}'")
+        print(separator)  # 输出分隔符
+else:
+    print(f"{column_letter}列中未找到包含问题内容（忽略指定标记并移除换行符等特殊字符后）。")
+    print(separator)  # 输出分隔符
