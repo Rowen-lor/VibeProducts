@@ -1,0 +1,160 @@
+# 根据Excel文件中的内容对文件进行检索，不止能检索文件名
+import os
+import pandas as pd
+from difflib import SequenceMatcher
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk, scrolledtext
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+
+# Default directory
+DEFAULT_DIRECTORY = "D:/Rowen/新文本"
+
+# Cache for files in the default directory
+file_cache = {}
+
+
+def cache_files_in_directory(directory):
+    """Cache all Excel files in the given directory."""
+    global file_cache
+    file_cache = {}
+    for root, _, files in os.walk(directory):
+        for filename in files:
+            if filename.endswith(".xlsx"):
+                file_path = os.path.join(root, filename)
+                try:
+                    df = pd.read_excel(file_path, sheet_name=None)
+                    file_cache[file_path] = df
+                except Exception as e:
+                    logging.error(f"Error reading {file_path}: {e}")
+
+
+def open_file(event):
+    """Open the clicked file path."""
+    try:
+        clicked_index = results_box.index(f"@{event.x},{event.y}")
+        tag_indices = results_box.tag_prevrange("file", clicked_index)
+        if tag_indices:
+            file_path = results_box.get(tag_indices[0], tag_indices[1])
+            if os.path.exists(file_path):
+                os.startfile(file_path)
+                print(f"Opened file: {file_path}")
+            else:
+                messagebox.showerror("Error", f"File does not exist: {file_path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"Error opening file: {e}")
+
+
+def search_files_by_content(search_term, search_type="exact"):
+    """Search for Excel files in the cached files list."""
+    results_box.delete(1.0, tk.END)
+    for file_path, df_dict in file_cache.items():
+        search_in_excel_file(file_path, df_dict, search_term, search_type)
+
+
+def search_in_excel_file(file_path, df_dict, search_term, search_type):
+    """Search for a term in an Excel file using either exact or fuzzy matching."""
+    try:
+        for sheet_name, sheet_df in df_dict.items():
+            for index, row in sheet_df.iterrows():
+                for cell_value in row.astype(str):
+                    if match_search(search_term, cell_value, search_type):
+                        log_result(file_path, sheet_name, index + 1, search_term)
+    except Exception as e:
+        logging.error(f"Error searching in {file_path}: {e}")
+        results_box.insert(tk.END, f"Error searching in {file_path}: {e}\n")
+
+
+def match_search(search_term, content, search_type):
+    """Perform either an exact or fuzzy search on the content."""
+    if search_type == "exact":
+        return search_term in content
+    elif search_type == "fuzzy":
+        return fuzzy_search(search_term, content)
+    return False
+
+
+def fuzzy_search(search_term, content, threshold=0.8):
+    """Perform a fuzzy search on the content to find close matches to the search term."""
+    words = content.split()
+    return any(SequenceMatcher(None, search_term, word).ratio() > threshold for word in words)
+
+
+def log_result(file_path, sheet_name, row, search_term):
+    """Log the search result in the results box with a clickable file path."""
+    results_box.insert(tk.END, f"Found '{search_term}' in file: \n")
+    results_box.insert(tk.END, file_path, ("file",))
+    results_box.insert(tk.END, f"\nSheet: {sheet_name}, Row: {row}\n\n")
+
+
+def browse_directory():
+    """Allow the user to browse for a directory to search."""
+    directory = filedialog.askdirectory()
+    if directory:
+        directory_entry.delete(0, tk.END)
+        directory_entry.insert(0, directory)
+
+
+def start_search(event=None):
+    """Initiate the search based on user input from the GUI."""
+    # Get directory path from the entry field
+    directory = directory_entry.get().strip()
+    if not os.path.exists(directory):
+        messagebox.showerror("Error", f"The directory does not exist: {directory}")
+        return  # Allow the user to change the path and retry
+
+    # Cache files in the provided directory
+    cache_files_in_directory(directory)
+
+    # Get search term
+    search_term = search_entry.get().strip()
+    if not search_term:
+        messagebox.showerror("Error", "Please enter a search term.")
+        return
+
+    # Perform search
+    search_type = search_type_var.get()
+    search_files_by_content(search_term, search_type)
+
+
+# Create the Tkinter window
+root = tk.Tk()
+root.title("Keyword Searcher")
+root.geometry("600x1000")
+
+# Directory Selection
+tk.Label(root, text="Directory:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+directory_entry = tk.Entry(root, width=50)
+directory_entry.grid(row=0, column=1, padx=10, pady=5)
+directory_entry.insert(0, DEFAULT_DIRECTORY)  # Insert default directory
+browse_button = tk.Button(root, text="Browse", command=browse_directory)
+browse_button.grid(row=0, column=2, padx=5, pady=5)
+
+# Search Term
+tk.Label(root, text="Keyword:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+search_entry = tk.Entry(root, width=50)
+search_entry.grid(row=1, column=1, padx=10, pady=5)
+
+# Bind Enter key to trigger search when pressed
+search_entry.bind("<Return>", start_search)
+
+# Search Type
+tk.Label(root, text="Search Type:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+search_type_var = tk.StringVar(value="exact")
+search_type_menu = ttk.Combobox(root, textvariable=search_type_var, values=["exact", "fuzzy"], state="readonly")
+search_type_menu.grid(row=2, column=1, padx=10, pady=5)
+
+# Search Button
+search_button = tk.Button(root, text="Search", command=start_search)
+search_button.grid(row=3, column=1, padx=10, pady=10)
+
+# Results Box
+results_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=80, height=60)
+results_box.grid(row=4, column=0, columnspan=3, padx=10, pady=10)
+results_box.tag_configure("file", foreground="blue", underline=True)
+results_box.bind("<Button-1>", open_file)
+
+# Start the Tkinter main loop
+root.mainloop()
