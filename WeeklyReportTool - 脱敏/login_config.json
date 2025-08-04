@@ -1,0 +1,15 @@
+{
+    "login_url": "",
+    "username": "haowenluo",
+    "password": "",
+    "headless": true,
+    "max_workers": 5,
+    "implicit_wait": 10,
+    "page_load_timeout": 60,
+    "delay_between_requests": 1.0,
+    "retry_attempts": 2,
+    "chromedriver_path": "",
+    "excel_file_path": "Status_inspection.xlsx",
+    "type1_xpath": "/html/body/div[1]/div/section/section/main/div/div/div/div/div/div/div[1]/div[1]/span[2]", 
+    "type2_completion_xpath": "//div[contains(@class, 'item_step_process')]//div[text()='Completion']/.." 
+    }
